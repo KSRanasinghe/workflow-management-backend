@@ -43,6 +43,15 @@ export class AuthServiceImpl implements AuthService {
       userId: user.id,
     });
 
+    const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
+
+    await this.authRepository.saveRefreshToken({
+      userId: user.id,
+      tokenHash: refreshTokenHash,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    });
+
+
     return {
       accessToken,
       refreshToken,
