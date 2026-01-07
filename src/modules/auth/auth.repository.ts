@@ -1,10 +1,12 @@
 export interface AuthRepository {
   // User-related
-  createUser(data: {
+  registerUser(data: {
     email: string;
     passwordHash: string;
     firstName: string;
     lastName: string;
+    refreshTokenHash: string;
+    refreshTokenExpiresAt: Date;
   }): Promise<{
     id: string;
     email: string;

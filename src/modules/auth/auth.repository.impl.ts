@@ -3,36 +3,73 @@ import { dbPool } from "../../config/db";
 
 export class AuthRepositoryImpl implements AuthRepository {
 
-  async createUser(data: {
+  // creating a new user - register
+  async registerUser(data: {
     email: string;
     passwordHash: string;
     firstName: string;
     lastName: string;
+    refreshTokenHash: string;
+    refreshTokenExpiresAt: Date;
   }): Promise<{
     id: string;
     email: string;
     firstName: string;
     lastName: string;
   }> {
-    const result = await dbPool.query(
-      `
-      insert into users (email, password_hash, first_name, last_name)
-      values ($1, $2, $3, $4)
-      returning id, email, first_name, last_name
-      `,
-      [data.email, data.passwordHash, data.firstName, data.lastName]
-    );
+    const client = await dbPool.connect();
 
-    const row = result.rows[0];
+    try {
+      await client.query("BEGIN");
 
-    return {
-      id: row.id,
-      email: row.email,
-      firstName: row.first_name,
-      lastName: row.last_name,
-    };
+      // 1. create user
+      const userResult = await client.query(
+        `
+        insert into users (email, password_hash, first_name, last_name)
+        values ($1, $2, $3, $4)
+        returning id, email, first_name, last_name
+        `,
+        [
+          data.email,
+          data.passwordHash,
+          data.firstName,
+          data.lastName,
+        ]
+      );
+
+      const user = userResult.rows[0];
+
+      // 2. save refresh token
+      await client.query(
+        `
+        insert into refresh_tokens (user_id, token_hash, expires_at)
+        values ($1, $2, $3)
+        `,
+        [
+          user.id,
+          data.refreshTokenHash,
+          data.refreshTokenExpiresAt,
+        ]
+      );
+
+      await client.query("COMMIT");
+
+      return {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+      };
+      
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
+  // find a user using email - login
   async findUserByEmail(email: string): Promise<{
     id: string;
     email: string;
@@ -64,6 +101,7 @@ export class AuthRepositoryImpl implements AuthRepository {
     };
   }
 
+  // saving the refresh token
   async saveRefreshToken(data: {
     userId: string;
     tokenHash: string;
@@ -78,6 +116,7 @@ export class AuthRepositoryImpl implements AuthRepository {
     );
   }
 
+  // find the refresh token
   async findRefreshToken(tokenHash: string): Promise<{
     id: string;
     userId: string;
@@ -107,6 +146,7 @@ export class AuthRepositoryImpl implements AuthRepository {
     };
   }
 
+  // revoking the token - logout
   async revokeRefreshToken(tokenHash: string): Promise<void> {
     await dbPool.query(
       `
