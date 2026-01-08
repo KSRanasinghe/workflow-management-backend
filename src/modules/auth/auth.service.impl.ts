@@ -60,7 +60,52 @@ export class AuthServiceImpl implements AuthService {
 
 
   async login(data: LoginRequestDTO): Promise<AuthResponseDTO> {
-    throw new Error("Not implemented");
+    const user = await this.authRepository.findUserByEmail(data.email);
+
+    if (!user) {
+      throw new Error("Invalid email or pasword.");
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      data.password,
+      user.passwordHash
+    );
+
+    if (!passwordMatches) {
+      throw new Error("Invalid email or pasword.");
+    }
+
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      email: user.email
+    });
+
+    const refreshToken = generateRefreshToken({
+      userId: user.id
+    });
+
+    const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
+
+    const refreshTokenExpiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    );
+
+    await this.authRepository.saveRefreshToken({
+      userId: user.id,
+      tokenHash: refreshTokenHash,
+      expiresAt: refreshTokenExpiresAt,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+    };
   }
 
   async refreshToken(
