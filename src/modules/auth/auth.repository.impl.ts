@@ -60,7 +60,7 @@ export class AuthRepositoryImpl implements AuthRepository {
         firstName: user.first_name,
         lastName: user.last_name,
       };
-      
+
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -120,14 +120,21 @@ export class AuthRepositoryImpl implements AuthRepository {
   async findRefreshToken(tokenHash: string): Promise<{
     id: string;
     userId: string;
+    email: string;
     expiresAt: Date;
     revokedAt: Date | null;
   } | null> {
     const result = await dbPool.query(
       `
-      select id, user_id, expires_at, revoked_at
-      from refresh_tokens
-      where token_hash = $1
+      select 
+        rt.id,
+        rt.user_id,
+        rt.expires_at,
+        rt.revoked_at,
+        u.email
+      from refresh_tokens rt
+      join users u on u.id = rt.user_id
+      where rt.token_hash = $1;
       `,
       [tokenHash]
     );
@@ -141,10 +148,39 @@ export class AuthRepositoryImpl implements AuthRepository {
     return {
       id: row.id,
       userId: row.user_id,
+      email: row.email,
       expiresAt: row.expires_at,
       revokedAt: row.revoked_at,
     };
   }
+
+  // find the refresh token using user_id
+  async findActiveRefreshTokensByUserId(userId: string) {
+    const result = await dbPool.query(
+      `
+      select
+        rt.id,
+        rt.token_hash,
+        rt.expires_at,
+        rt.revoked_at,
+        u.email
+      from refresh_tokens rt
+      join users u on u.id = rt.user_id
+      where rt.user_id = $1
+        and rt.revoked_at is null
+        and rt.expires_at > now()
+      `,
+      [userId]
+    );
+  
+    return result.rows.map(row => ({
+      id: row.id,
+      tokenHash: row.token_hash,
+      expiresAt: row.expires_at,
+      revokedAt: row.revoked_at,
+      email: row.email,
+    }));
+  }  
 
   // revoking the token - logout
   async revokeRefreshToken(tokenHash: string): Promise<void> {

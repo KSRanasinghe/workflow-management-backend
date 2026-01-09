@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { AuthService } from "./auth.service";
 import { AuthRepository } from "./auth.repository";
 import {
@@ -108,10 +109,51 @@ export class AuthServiceImpl implements AuthService {
     };
   }
 
-  async refreshToken(
-    data: RefreshTokenRequestDTO
-  ): Promise<{ accessToken: string }> {
-    throw new Error("Not implemented");
+  async refreshToken(data: RefreshTokenRequestDTO): Promise<{ accessToken: string }> {
+
+    let decode: any;
+
+    try {
+      decode = jwt.verify(
+        data.refreshToken,
+        process.env.REFRESH_TOKEN_SECRET!
+      );
+    } catch {
+      throw new Error("Invalid refresh token");
+    }
+
+    const { userId } = decode;
+
+    const tokens = await this.authRepository.findActiveRefreshTokensByUserId(userId);
+
+    let matchedToken: {
+      email: string
+    } | null = null;
+
+    for (const token of tokens) {
+      const isMatch = await bcrypt.compare(
+        data.refreshToken,
+        token.tokenHash
+      );
+
+      if (isMatch) {
+        matchedToken = token;
+        break;
+      }
+
+    }
+
+    if (!matchedToken) {
+      throw new Error("Invalid refresh token");
+    }
+
+    const accessToken = generateAccessToken({
+      userId,
+      email: matchedToken.email,
+    });
+
+    return { accessToken };
+
   }
 
   async logout(refreshToken: string): Promise<void> {

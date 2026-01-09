@@ -32,9 +32,19 @@ export interface AuthRepository {
   findRefreshToken(tokenHash: string): Promise<{
     id: string;
     userId: string;
+    email: string;
     expiresAt: Date;
     revokedAt: Date | null;
   } | null>;
+
+  findActiveRefreshTokensByUserId(userId: string): Promise<Array<{
+    id: string;
+    tokenHash: string;
+    expiresAt: Date;
+    revokedAt: Date | null;
+    email: string;
+  }>>;
+
 
   revokeRefreshToken(tokenHash: string): Promise<void>;
 }
