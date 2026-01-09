@@ -29,14 +29,6 @@ export interface AuthRepository {
     expiresAt: Date;
   }): Promise<void>;
 
-  findRefreshToken(tokenHash: string): Promise<{
-    id: string;
-    userId: string;
-    email: string;
-    expiresAt: Date;
-    revokedAt: Date | null;
-  } | null>;
-
   findActiveRefreshTokensByUserId(userId: string): Promise<Array<{
     id: string;
     tokenHash: string;
@@ -46,5 +38,5 @@ export interface AuthRepository {
   }>>;
 
 
-  revokeRefreshToken(tokenHash: string): Promise<void>;
+  revokeRefreshTokenById(id: string): Promise<void>;
 }

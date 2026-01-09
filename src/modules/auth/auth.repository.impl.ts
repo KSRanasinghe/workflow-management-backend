@@ -116,44 +116,6 @@ export class AuthRepositoryImpl implements AuthRepository {
     );
   }
 
-  // find the refresh token
-  async findRefreshToken(tokenHash: string): Promise<{
-    id: string;
-    userId: string;
-    email: string;
-    expiresAt: Date;
-    revokedAt: Date | null;
-  } | null> {
-    const result = await dbPool.query(
-      `
-      select 
-        rt.id,
-        rt.user_id,
-        rt.expires_at,
-        rt.revoked_at,
-        u.email
-      from refresh_tokens rt
-      join users u on u.id = rt.user_id
-      where rt.token_hash = $1;
-      `,
-      [tokenHash]
-    );
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    const row = result.rows[0];
-
-    return {
-      id: row.id,
-      userId: row.user_id,
-      email: row.email,
-      expiresAt: row.expires_at,
-      revokedAt: row.revoked_at,
-    };
-  }
-
   // find the refresh token using user_id
   async findActiveRefreshTokensByUserId(userId: string) {
     const result = await dbPool.query(
@@ -183,14 +145,14 @@ export class AuthRepositoryImpl implements AuthRepository {
   }  
 
   // revoking the token - logout
-  async revokeRefreshToken(tokenHash: string): Promise<void> {
+  async revokeRefreshTokenById(id: string): Promise<void> {
     await dbPool.query(
       `
       update refresh_tokens
       set revoked_at = now()
-      where token_hash = $1
+      where id = $1
       `,
-      [tokenHash]
+      [id]
     );
   }
 
