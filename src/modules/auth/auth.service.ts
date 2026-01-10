@@ -1,8 +1,8 @@
-import { RegisterRequestDTO, LoginRequestDTO, RefreshTokenRequestDTO, AuthResponseDTO } from "./auth.dto";
+import { RegisterRequestDTO, LoginRequestDTO, RefreshTokenRequestDTO, AuthResponseDTO, RefreshTokenResponsetDTO } from "./auth.dto";
 
 export interface AuthService {
   register(data: RegisterRequestDTO): Promise<AuthResponseDTO>;
   login(data: LoginRequestDTO): Promise<AuthResponseDTO>;
-  refreshToken(data: RefreshTokenRequestDTO): Promise<{ accessToken: string }>;
-  logout(refreshToken: string): Promise<void>;
+  refreshToken(data: RefreshTokenRequestDTO): Promise<RefreshTokenResponsetDTO>;
+  logout(data: RefreshTokenRequestDTO): Promise<void>;
 }

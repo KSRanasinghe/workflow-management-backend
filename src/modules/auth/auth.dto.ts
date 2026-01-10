@@ -30,3 +30,8 @@ export interface AuthResponseDTO {
   refreshToken: string;
   user: UserResponseDTO;
 }
+
+export interface RefreshTokenResponsetDTO {
+  accessToken: string;
+  refreshToken: string;
+}

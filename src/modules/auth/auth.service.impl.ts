@@ -7,6 +7,7 @@ import {
   LoginRequestDTO,
   RefreshTokenRequestDTO,
   AuthResponseDTO,
+  RefreshTokenResponsetDTO
 } from "./auth.dto";
 import {
   generateAccessToken,
@@ -19,6 +20,7 @@ const SALT_ROUNDS = 10;
 export class AuthServiceImpl implements AuthService {
   constructor(private readonly authRepository: AuthRepository) { }
 
+  // new user registration
   async register(data: RegisterRequestDTO): Promise<AuthResponseDTO> {
     const existingUser = await this.authRepository.findUserByEmail(data.email);
 
@@ -59,7 +61,7 @@ export class AuthServiceImpl implements AuthService {
     };
   }
 
-
+  // user login
   async login(data: LoginRequestDTO): Promise<AuthResponseDTO> {
     const user = await this.authRepository.findUserByEmail(data.email);
 
@@ -109,8 +111,8 @@ export class AuthServiceImpl implements AuthService {
     };
   }
 
-  async refreshToken(data: RefreshTokenRequestDTO): Promise<{ accessToken: string }> {
-
+  // token refreshing
+  async refreshToken(data: RefreshTokenRequestDTO): Promise<RefreshTokenResponsetDTO> {
     let decode: any;
 
     try {
@@ -127,6 +129,7 @@ export class AuthServiceImpl implements AuthService {
     const tokens = await this.authRepository.findActiveRefreshTokensByUserId(userId);
 
     let matchedToken: {
+      id: string,
       email: string
     } | null = null;
 
@@ -140,23 +143,75 @@ export class AuthServiceImpl implements AuthService {
         matchedToken = token;
         break;
       }
-
     }
 
     if (!matchedToken) {
       throw new Error("Invalid refresh token");
     }
 
+    await this.authRepository.revokeRefreshTokenById(matchedToken.id);
+
     const accessToken = generateAccessToken({
       userId,
       email: matchedToken.email,
     });
 
-    return { accessToken };
+    const newRefreshToken = generateRefreshToken({ userId });
+
+    const newRefreshTokenHash = await bcrypt.hash(
+      newRefreshToken,
+      SALT_ROUNDS
+    );
+
+    const expiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000
+    );
+
+    await this.authRepository.saveRefreshToken({
+      userId,
+      tokenHash: newRefreshTokenHash,
+      expiresAt
+    });
+
+    return {
+      accessToken,
+      refreshToken: newRefreshToken
+    };
 
   }
 
-  async logout(refreshToken: string): Promise<void> {
-    throw new Error("Not implemented");
+  // user logout
+  async logout(data: RefreshTokenRequestDTO): Promise<void> {
+
+    let decoded: any;
+
+    try {
+      decoded = jwt.verify(
+        data.refreshToken,
+        process.env.REFRESH_TOKEN_SECRET!
+      );
+    } catch {
+
+      return;
+    }
+
+    const { userId } = decoded;
+
+    const tokens = await this.authRepository.findActiveRefreshTokensByUserId(userId);
+
+
+    for (const token of tokens) {
+      const isMatch = await bcrypt.compare(
+        data.refreshToken,
+        token.tokenHash
+      );
+
+      if (isMatch) {
+        console.log(token.id);
+
+        await this.authRepository.revokeRefreshTokenById(token.id);
+        break;
+      }
+    }
   }
 }
