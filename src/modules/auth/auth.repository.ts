@@ -1,10 +1,13 @@
 export interface AuthRepository {
   // User-related
-  createUser(data: {
+  registerUser(data: {
     email: string;
     passwordHash: string;
     firstName: string;
     lastName: string;
+    refreshTokenHash: string;
+    jti: string,
+    refreshTokenExpiresAt: Date;
   }): Promise<{
     id: string;
     email: string;
@@ -24,15 +27,19 @@ export interface AuthRepository {
   saveRefreshToken(data: {
     userId: string;
     tokenHash: string;
+    jti: string,
     expiresAt: Date;
   }): Promise<void>;
 
-  findRefreshToken(tokenHash: string): Promise<{
+  findActiveRefreshTokenByJti(jti: string): Promise<{
     id: string;
-    userId: string;
+    tokenHash: string;
     expiresAt: Date;
     revokedAt: Date | null;
+    email: string;
+    userId: string;
   } | null>;
 
-  revokeRefreshToken(tokenHash: string): Promise<void>;
+
+  revokeRefreshTokenById(id: string): Promise<void>;
 }

@@ -9,6 +9,7 @@ import {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // new user registration
   async register(req: Request, res: Response): Promise<void> {
     const data: RegisterRequestDTO = req.body;
 
@@ -17,6 +18,7 @@ export class AuthController {
     res.status(201).json(result);
   }
 
+  // user login
   async login(req: Request, res: Response): Promise<void> {
     const data: LoginRequestDTO = req.body;
 
@@ -25,6 +27,7 @@ export class AuthController {
     res.status(200).json(result);
   }
 
+  // token refreshing
   async refresh(req: Request, res: Response): Promise<void> {
     const data: RefreshTokenRequestDTO = req.body;
 
@@ -33,10 +36,11 @@ export class AuthController {
     res.status(200).json(result);
   }
 
+  // user logout
   async logout(req: Request, res: Response): Promise<void> {
-    const { refreshToken } = req.body;
+    const data: RefreshTokenRequestDTO = req.body;
 
-    await this.authService.logout(refreshToken);
+    await this.authService.logout(data);
 
     res.status(204).send();
   }
