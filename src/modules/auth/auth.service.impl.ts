@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
 import { AuthService } from "./auth.service";
 import { AuthRepository } from "./auth.repository";
 import {
@@ -30,8 +31,11 @@ export class AuthServiceImpl implements AuthService {
 
     const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
 
+    const refreshTokenJti = uuidv4();
+
     const refreshToken = generateRefreshToken({
       userId: "temp",
+      jti: refreshTokenJti,
     });
 
     const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
@@ -46,6 +50,7 @@ export class AuthServiceImpl implements AuthService {
       firstName: data.firstName,
       lastName: data.lastName,
       refreshTokenHash,
+      jti: refreshTokenJti,
       refreshTokenExpiresAt,
     });
 
@@ -78,13 +83,16 @@ export class AuthServiceImpl implements AuthService {
       throw new Error("Invalid email or pasword.");
     }
 
+    const refreshTokenJti = uuidv4();
+
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email
     });
 
     const refreshToken = generateRefreshToken({
-      userId: user.id
+      userId: user.id,
+      jti: refreshTokenJti,
     });
 
     const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
@@ -96,6 +104,7 @@ export class AuthServiceImpl implements AuthService {
     await this.authRepository.saveRefreshToken({
       userId: user.id,
       tokenHash: refreshTokenHash,
+      jti: refreshTokenJti,
       expiresAt: refreshTokenExpiresAt,
     });
 
@@ -124,39 +133,35 @@ export class AuthServiceImpl implements AuthService {
       throw new Error("Invalid refresh token");
     }
 
-    const { userId } = decode;
+    const { userId, jti } = decode;
 
-    const tokens = await this.authRepository.findActiveRefreshTokensByUserId(userId);
+    const token = await this.authRepository.findActiveRefreshTokenByJti(jti);
 
-    let matchedToken: {
-      id: string,
-      email: string
-    } | null = null;
-
-    for (const token of tokens) {
-      const isMatch = await bcrypt.compare(
-        data.refreshToken,
-        token.tokenHash
-      );
-
-      if (isMatch) {
-        matchedToken = token;
-        break;
-      }
+    if (!token) {
+      throw new Error("Refresh token not found or already revoked");
     }
 
-    if (!matchedToken) {
+    const isMatch = await bcrypt.compare(
+      data.refreshToken,
+      token.tokenHash
+    );
+
+    if (!isMatch) {
       throw new Error("Invalid refresh token");
     }
 
-    await this.authRepository.revokeRefreshTokenById(matchedToken.id);
+    await this.authRepository.revokeRefreshTokenById(token.id);
 
     const accessToken = generateAccessToken({
       userId,
-      email: matchedToken.email,
+      email: token.email,
     });
 
-    const newRefreshToken = generateRefreshToken({ userId });
+    const newJti = uuidv4();
+    const newRefreshToken = generateRefreshToken({
+      userId,
+      jti: newJti,
+    });
 
     const newRefreshTokenHash = await bcrypt.hash(
       newRefreshToken,
@@ -170,6 +175,7 @@ export class AuthServiceImpl implements AuthService {
     await this.authRepository.saveRefreshToken({
       userId,
       tokenHash: newRefreshTokenHash,
+      jti: newJti,
       expiresAt
     });
 
@@ -191,27 +197,24 @@ export class AuthServiceImpl implements AuthService {
         process.env.REFRESH_TOKEN_SECRET!
       );
     } catch {
-
       return;
     }
 
-    const { userId } = decoded;
+    const { jti } = decoded;
 
-    const tokens = await this.authRepository.findActiveRefreshTokensByUserId(userId);
+    const token = await this.authRepository.findActiveRefreshTokenByJti(jti);
 
 
-    for (const token of tokens) {
+    if (token) {
       const isMatch = await bcrypt.compare(
         data.refreshToken,
         token.tokenHash
       );
 
       if (isMatch) {
-        console.log(token.id);
-
         await this.authRepository.revokeRefreshTokenById(token.id);
-        break;
       }
     }
   }
+  
 }

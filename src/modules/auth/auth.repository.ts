@@ -6,6 +6,7 @@ export interface AuthRepository {
     firstName: string;
     lastName: string;
     refreshTokenHash: string;
+    jti: string,
     refreshTokenExpiresAt: Date;
   }): Promise<{
     id: string;
@@ -26,16 +27,18 @@ export interface AuthRepository {
   saveRefreshToken(data: {
     userId: string;
     tokenHash: string;
+    jti: string,
     expiresAt: Date;
   }): Promise<void>;
 
-  findActiveRefreshTokensByUserId(userId: string): Promise<Array<{
+  findActiveRefreshTokenByJti(jti: string): Promise<{
     id: string;
     tokenHash: string;
     expiresAt: Date;
     revokedAt: Date | null;
     email: string;
-  }>>;
+    userId: string;
+  } | null>;
 
 
   revokeRefreshTokenById(id: string): Promise<void>;

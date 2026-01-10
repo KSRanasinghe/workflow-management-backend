@@ -10,6 +10,7 @@ export class AuthRepositoryImpl implements AuthRepository {
     firstName: string;
     lastName: string;
     refreshTokenHash: string;
+    jti: string,
     refreshTokenExpiresAt: Date;
   }): Promise<{
     id: string;
@@ -42,12 +43,13 @@ export class AuthRepositoryImpl implements AuthRepository {
       // 2. save refresh token
       await client.query(
         `
-        insert into refresh_tokens (user_id, token_hash, expires_at)
-        values ($1, $2, $3)
+        insert into refresh_tokens (user_id, token_hash, jti, expires_at)
+        values ($1, $2, $3, $4)
         `,
         [
           user.id,
           data.refreshTokenHash,
+          data.jti,
           data.refreshTokenExpiresAt,
         ]
       );
@@ -105,44 +107,53 @@ export class AuthRepositoryImpl implements AuthRepository {
   async saveRefreshToken(data: {
     userId: string;
     tokenHash: string;
+    jti: string,
     expiresAt: Date;
   }): Promise<void> {
     await dbPool.query(
       `
-      insert into refresh_tokens (user_id, token_hash, expires_at)
-      values ($1, $2, $3)
+      insert into refresh_tokens (user_id, token_hash, jti, expires_at)
+      values ($1, $2, $3, $4)
       `,
-      [data.userId, data.tokenHash, data.expiresAt]
+      [data.userId, data.tokenHash, data.jti, data.expiresAt]
     );
   }
 
   // find the refresh token using user_id
-  async findActiveRefreshTokensByUserId(userId: string) {
+  async findActiveRefreshTokenByJti(jti: string) {
     const result = await dbPool.query(
       `
-      select
+      SELECT
         rt.id,
         rt.token_hash,
         rt.expires_at,
         rt.revoked_at,
+        rt.user_id as "userId",
         u.email
-      from refresh_tokens rt
-      join users u on u.id = rt.user_id
-      where rt.user_id = $1
-        and rt.revoked_at is null
-        and rt.expires_at > now()
+      FROM refresh_tokens rt
+      JOIN users u ON u.id = rt.user_id
+      WHERE rt.jti = $1
+        AND rt.revoked_at IS NULL
+        AND rt.expires_at > NOW()
+      LIMIT 1;
       `,
-      [userId]
+      [jti]
     );
-  
-    return result.rows.map(row => ({
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
       id: row.id,
       tokenHash: row.token_hash,
       expiresAt: row.expires_at,
       revokedAt: row.revoked_at,
       email: row.email,
-    }));
-  }  
+      userId: row.userId
+    };
+  }
 
   // revoking the token - logout
   async revokeRefreshTokenById(id: string): Promise<void> {
